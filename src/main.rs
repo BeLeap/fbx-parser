@@ -1,7 +1,7 @@
 use std::fs;
 
-mod token;
 mod lexer;
+mod token;
 
 fn main() {
     let fbx_content = fs::read_to_string("cube.fbx").unwrap();
