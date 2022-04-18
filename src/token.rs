@@ -1,8 +1,12 @@
 #[derive(Debug, PartialEq)]
 pub enum TokenType {
-    NodeType,
-    Property,
     Invalid,
+    EOF,
+    Literal,
+    Colon,
+    LeftBrace,
+    RightBrace,
+    DoubleQuote,
 }
 
 #[derive(Debug, PartialEq)]

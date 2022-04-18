@@ -31,6 +31,10 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    pub fn peek_char(&self) -> Option<char> {
+        self.input.chars().nth(self.read_position)
+    }
+
     pub fn eat_whitespace(self) -> Self {
         match self.ch {
             Some(' ' | '\t' | '\n' | '\r') => self.read_char().eat_whitespace(),
@@ -42,15 +46,57 @@ impl<'a> Lexer<'a> {
         let lexer = self.eat_whitespace();
 
         match lexer.ch {
-            Some(';') => {
-                let (lexer, _) = lexer.read_line();
-                lexer.next_token()
-            }
-            _ => (
+            Some(ch) => {
+                match ch {
+                    ';' => {
+                        let (lexer, _) = lexer.read_line();
+                        lexer.next_token()
+                    },
+                    ':' => {
+                        (lexer.read_char(), Token {
+                            token_type: token::TokenType::Colon,
+                            literal: ":".to_string(),
+                        })
+                    },
+                    '{' => {
+                        (lexer.read_char(), Token {
+                            token_type: token::TokenType::LeftBrace,
+                            literal: "{".to_string(),
+                        })
+                    },
+                    '}' => {
+                        (lexer.read_char(), Token {
+                            token_type: token::TokenType::RightBrace,
+                            literal: "}".to_string(),
+                        })
+                    },
+                    '"' => {
+                        (lexer.read_char(), Token {
+                            token_type: token::TokenType::DoubleQuote,
+                            literal: '"'.to_string(),
+                        })
+                    },
+                    ch => {
+                        if ch.is_alphabetic() {
+                            let (lexer, literal) = lexer.read_literal();
+                            (lexer.read_char(), Token {
+                                token_type: token::TokenType::Literal,
+                                literal: format!("{}{}", ch, literal),
+                            })
+                        } else {
+                            (lexer.read_char(), Token {
+                                token_type: token::TokenType::Invalid,
+                                literal: format!("'{}' is invalid", ch),
+                            })
+                        }
+                    }
+                }
+            },
+            None => (
                 lexer.read_char(),
                 Token {
-                    token_type: token::TokenType::Invalid,
-                    literal: String::from(""),
+                    token_type: token::TokenType::EOF,
+                    literal: "".to_string(),
                 },
             ),
         }
@@ -70,12 +116,28 @@ impl<'a> Lexer<'a> {
                     read_position,
                     ch: Some('\n'),
                 },
-                String::from(""),
+                "".to_string(),
             ),
             lexer => {
                 let character = String::from(lexer.ch.unwrap());
                 let (lexer, comment) = lexer.read_line();
                 (lexer, format!("{}{}", character, comment))
+            }
+        }
+    }
+
+    pub fn read_literal(self) -> (Self, String) {
+        match self.peek_char() {
+            Some(ch) => {
+                if ch.is_alphabetic() {
+                    let (lexer, remainder) = self.read_char().read_literal();
+                    (lexer, format!("{}{}", ch, remainder))
+                } else {
+                    (self, "".to_string())
+                }
+            },
+            None => {
+                (self, "".to_string())
             }
         }
     }
@@ -127,5 +189,35 @@ mod test {
                 ch: Some('L')
             }
         );
+    }
+
+    #[test]
+    fn test_literal() {
+        let content = r#"
+            ;test comment 1
+            ;test comment 2
+            TestType: {
+                TestSubType: "Test Property"
+            }"#.to_string();
+        let mut lexer = Lexer::new(&content);
+
+        let desired_results = [
+            Token { token_type: TokenType::Literal, literal: "TestType".to_string() },
+            Token { token_type: TokenType::Colon, literal: ":".to_string() },
+            Token { token_type: TokenType::LeftBrace, literal: "{".to_string() },
+            Token { token_type: TokenType::Literal, literal: "TestSubType".to_string() },
+            Token { token_type: TokenType::Colon, literal: ":".to_string() },
+            Token { token_type: TokenType::DoubleQuote, literal: "\"".to_string() },
+            Token { token_type: TokenType::Literal, literal: "Test".to_string() },
+            Token { token_type: TokenType::Literal, literal: "Property".to_string() },
+            Token { token_type: TokenType::DoubleQuote, literal: "\"".to_string() },
+            Token { token_type: TokenType::RightBrace, literal: "}".to_string() },
+        ];
+
+        for desired_result in desired_results {
+            let (new_l, token) = lexer.next_token();
+            lexer = new_l;
+            assert_eq!(desired_result, token);
+        }
     }
 }
