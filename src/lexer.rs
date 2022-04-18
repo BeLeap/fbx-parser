@@ -55,7 +55,7 @@ impl<'a> Lexer<'a> {
             Some(ch) => {
                 match ch {
                     ';' => {
-                        let (lexer, _) = lexer.read_line();
+                        let (lexer, _) = lexer.consume_line();
                         lexer.next_token()
                     },
                     ':' => {
@@ -77,17 +77,25 @@ impl<'a> Lexer<'a> {
                         })
                     },
                     '"' => {
-                        (lexer.read_char(), Token {
-                            token_type: token::TokenType::DoubleQuote,
-                            literal: '"'.to_string(),
-                        })
+                        let (lexer, string) = lexer.consume_string();
+                        (lexer.read_char(), match string {
+                                Some(string) => Token {
+                                    token_type: token::TokenType::String,
+                                    literal: format!("{}{}", ch, string)
+                                },
+                                None => Token {
+                                    token_type: token::TokenType::Invalid,
+                                    literal: "malformed string".to_string(),
+                                }
+                            }
+                        )
                     },
                     ch => {
                         if ch.is_alphabetic() {
-                            let (lexer, literal) = lexer.read_literal();
+                            let (lexer, ident) = lexer.consume_ident();
                             (lexer.read_char(), Token {
-                                token_type: token::TokenType::Literal,
-                                literal: format!("{}{}", ch, literal),
+                                token_type: token::TokenType::Ident,
+                                literal: format!("{}{}", ch, ident),
                             })
                         } else {
                             (lexer.read_char(), Token {
@@ -108,7 +116,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn read_line(self) -> (Self, String) {
+    pub fn consume_line(self) -> (Self, String) {
         match self.read_char() {
             Lexer {
                 input,
@@ -126,17 +134,17 @@ impl<'a> Lexer<'a> {
             ),
             lexer => {
                 let character = String::from(lexer.ch.unwrap());
-                let (lexer, comment) = lexer.read_line();
+                let (lexer, comment) = lexer.consume_line();
                 (lexer, format!("{}{}", character, comment))
             }
         }
     }
 
-    pub fn read_literal(self) -> (Self, String) {
+    pub fn consume_ident(self) -> (Self, String) {
         match self.peek_char() {
             Some(ch) => {
                 if ch.is_alphabetic() {
-                    let (lexer, remainder) = self.read_char().read_literal();
+                    let (lexer, remainder) = self.read_char().consume_ident();
                     (lexer, format!("{}{}", ch, remainder))
                 } else {
                     (self, "".to_string())
@@ -144,6 +152,28 @@ impl<'a> Lexer<'a> {
             },
             None => {
                 (self, "".to_string())
+            }
+        }
+    }
+
+    pub fn consume_string(self) -> (Self, Option<String>) {
+        match self.peek_char() {
+            Some(ch) => {
+                if ch.is_alphabetic() || ch.is_whitespace() {
+                    let (lexer, remainder) = self.read_char().consume_string();
+                    (lexer, match remainder {
+                        Some(remainder) => Some(format!("{}{}", ch, remainder)),
+                        None => None,
+                    })
+                } else if ch == '"' {
+                    let lexer = self.read_char();
+                    (lexer, Some('"'.to_string()))
+                } else {
+                    (self, None)
+                }
+            },
+            None => {
+                (self, None)
             }
         }
     }
@@ -208,15 +238,12 @@ mod test {
         let mut lexer = Lexer::new(&content);
 
         let desired_results = [
-            Token { token_type: TokenType::Literal, literal: "TestType".to_string() },
+            Token { token_type: TokenType::Ident, literal: "TestType".to_string() },
             Token { token_type: TokenType::Colon, literal: ":".to_string() },
             Token { token_type: TokenType::LeftBrace, literal: "{".to_string() },
-            Token { token_type: TokenType::Literal, literal: "TestSubType".to_string() },
+            Token { token_type: TokenType::Ident, literal: "TestSubType".to_string() },
             Token { token_type: TokenType::Colon, literal: ":".to_string() },
-            Token { token_type: TokenType::DoubleQuote, literal: "\"".to_string() },
-            Token { token_type: TokenType::Literal, literal: "Test".to_string() },
-            Token { token_type: TokenType::Literal, literal: "Property".to_string() },
-            Token { token_type: TokenType::DoubleQuote, literal: "\"".to_string() },
+            Token { token_type: TokenType::String, literal: "\"Test Property\"".to_string() },
             Token { token_type: TokenType::RightBrace, literal: "}".to_string() },
         ];
 
@@ -225,5 +252,26 @@ mod test {
             lexer = new_l;
             assert_eq!(desired_result, token);
         }
+    }
+
+    #[test]
+    fn test_malformed_string() {
+        let content = r#"TestType: {
+                TestSubType: "Malformed String
+            }"#;
+
+        let lexer = Lexer::new(&content);
+
+        fn exhaust(lexer: Lexer) -> bool {
+            match lexer.next_token() {
+                (_, Token {
+                    token_type: TokenType::Invalid,
+                    ..
+                }) => true,
+                (l, _) => exhaust(l)
+            }
+        }
+
+        assert!(exhaust(lexer));
     }
 }

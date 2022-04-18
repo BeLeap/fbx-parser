@@ -2,11 +2,11 @@
 pub enum TokenType {
     Invalid,
     EOF,
-    Literal,
+    Ident,
     Colon,
     LeftBrace,
     RightBrace,
-    DoubleQuote,
+    String,
 }
 
 #[derive(Debug, PartialEq)]
