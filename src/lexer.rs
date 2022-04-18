@@ -37,7 +37,13 @@ impl<'a> Lexer<'a> {
 
     pub fn eat_whitespace(self) -> Self {
         match self.ch {
-            Some(' ' | '\t' | '\n' | '\r') => self.read_char().eat_whitespace(),
+            Some(ch) => {
+                if ch.is_whitespace() {
+                    self.read_char().eat_whitespace()
+                } else {
+                    self
+                }
+            },
             _ => self,
         }
     }
@@ -175,7 +181,7 @@ mod test {
     }
 
     #[test]
-    fn test_skip_whitespace() {
+    fn test_eat_whitespace() {
         let content = String::from(" \n \t \r Lorem Ipsum");
         let lexer = Lexer::new(&content);
 
