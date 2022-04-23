@@ -90,12 +90,27 @@ impl<'a> Lexer<'a> {
                             }
                         )
                     },
+                    ',' => {
+                        (lexer.read_char(), Token {
+                            token_type: token::TokenType::Comma,
+                            literal: ",".to_string(),
+                        })
+                    }
                     ch => {
                         if ch.is_alphabetic() {
                             let (lexer, ident) = lexer.consume_ident();
                             (lexer.read_char(), Token {
                                 token_type: token::TokenType::Ident,
                                 literal: format!("{}{}", ch, ident),
+                            })
+                        } else if ch.is_numeric() || ch == '-' {
+                            let (lexer, num_lit) = lexer.consume_number();
+                            (lexer.read_char(), Token {
+                                token_type: token::TokenType::Numeric,
+                                literal: match num_lit {
+                                    Some(num_lit) => format!("{}{}", ch, num_lit),
+                                    None => "malformed number".to_string(),
+                                }
                             })
                         } else {
                             (lexer.read_char(), Token {
@@ -143,7 +158,7 @@ impl<'a> Lexer<'a> {
     pub fn consume_ident(self) -> (Self, String) {
         match self.peek_char() {
             Some(ch) => {
-                if ch.is_alphabetic() {
+                if ch.is_alphanumeric() {
                     let (lexer, remainder) = self.read_char().consume_ident();
                     (lexer, format!("{}{}", ch, remainder))
                 } else {
@@ -159,22 +174,39 @@ impl<'a> Lexer<'a> {
     pub fn consume_string(self) -> (Self, Option<String>) {
         match self.peek_char() {
             Some(ch) => {
-                if ch.is_alphabetic() || ch.is_whitespace() {
+                if ch == '"' {
+                    let lexer = self.read_char();
+                    (lexer, Some('"'.to_string()))
+                } else {
                     let (lexer, remainder) = self.read_char().consume_string();
                     (lexer, match remainder {
                         Some(remainder) => Some(format!("{}{}", ch, remainder)),
                         None => None,
                     })
-                } else if ch == '"' {
-                    let lexer = self.read_char();
-                    (lexer, Some('"'.to_string()))
-                } else {
-                    (self, None)
                 }
             },
             None => {
                 (self, None)
             }
+        }
+    }
+
+    pub fn consume_number(self) -> (Self, Option<String>) {
+        match self.peek_char() {
+            Some(ch)=> {
+                if ch.is_numeric() || ch == '.' {
+                    let (lexer, remainder) = self.read_char().consume_number();
+                    (lexer, match remainder {
+                        Some(remainder) => Some(format!("{}{}", ch, remainder)),
+                        None => None
+                    })
+                } else if ch == '\n' || ch == ',' {
+                    (self, Some(String::new()))
+                } else {
+                    (self, None)
+                }
+            }
+            None => (self, None)
         }
     }
 }
@@ -273,5 +305,41 @@ mod test {
         }
 
         assert!(exhaust(lexer));
+    }
+
+    #[test]
+    fn test_numeric() {
+        let content = r#"
+        TestType: {
+            TestSubTypeOne: 100, 0, 0
+            TestSubTypeTwo: 100.0
+        }
+        "#;
+
+        let mut lexer = Lexer::new(&content);
+
+        let desired_results = [
+            Token { token_type: TokenType::Ident, literal: "TestType".to_string() },
+            Token { token_type: TokenType::Colon, literal: ":".to_string() },
+            Token { token_type: TokenType::LeftBrace, literal: "{".to_string() },
+            Token { token_type: TokenType::Ident, literal: "TestSubTypeOne".to_string() },
+            Token { token_type: TokenType::Colon, literal: ":".to_string() },
+            Token { token_type: TokenType::Numeric, literal: "100".to_string() },
+            Token { token_type: TokenType::Comma, literal: ",".to_string() },
+            Token { token_type: TokenType::Numeric, literal: "0".to_string() },
+            Token { token_type: TokenType::Comma, literal: ",".to_string() },
+            Token { token_type: TokenType::Numeric, literal: "0".to_string() },
+            Token { token_type: TokenType::Ident, literal: "TestSubTypeTwo".to_string() },
+            Token { token_type: TokenType::Colon, literal: ":".to_string() },
+            Token { token_type: TokenType::Numeric, literal: "100.0".to_string() },
+            Token { token_type: TokenType::RightBrace, literal: "}".to_string() },
+        ];
+
+        for desired_result in desired_results {
+            let (new_l, token) = lexer.next_token();
+            lexer = new_l;
+            println!("{:?}", token);
+            assert_eq!(desired_result, token);
+        }
     }
 }

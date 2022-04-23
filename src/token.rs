@@ -7,6 +7,8 @@ pub enum TokenType {
     LeftBrace,
     RightBrace,
     String,
+    Numeric,
+    Comma,
 }
 
 #[derive(Debug, PartialEq)]
