@@ -1,6 +1,6 @@
 name: "Test"
 on:
-  [ push ]
+  [ push, pull_request ]
 
 jobs:
   test:
@@ -20,6 +20,8 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: "[SETUP] Clean up former test result"
+        run: find . -name "*.gcda" -print0 | xargs -0 rm
       - name: "[SETUP] Cargo toolchain"
         uses: actions-rs/toolchain@v1
         with:
