@@ -9,7 +9,7 @@ jobs:
       - name: "[SETUP] Checkout"
         uses: actions/checkout@v3
         with:
-          depth: 0
+          fetch-depth: 0
       - uses: actions/cache@v3
         with:
           path: |
