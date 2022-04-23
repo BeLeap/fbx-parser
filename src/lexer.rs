@@ -105,11 +105,14 @@ impl<'a> Lexer<'a> {
                             })
                         } else if ch.is_numeric() || ch == '-' {
                             let (lexer, num_lit) = lexer.consume_number();
-                            (lexer.read_char(), Token {
+                            (lexer.read_char(), match num_lit {
+                                Some(num_lit) => Token {
                                 token_type: token::TokenType::Numeric,
-                                literal: match num_lit {
-                                    Some(num_lit) => format!("{}{}", ch, num_lit),
-                                    None => "malformed number".to_string(),
+                                literal: format!("{}{}", ch, num_lit),
+                                },
+                                None => Token {
+                                    token_type: token::TokenType::Invalid,
+                                    literal: "malformed number".to_string(),
                                 }
                             })
                         } else {
@@ -277,6 +280,7 @@ mod test {
             Token { token_type: TokenType::Colon, literal: ":".to_string() },
             Token { token_type: TokenType::String, literal: "\"Test Property\"".to_string() },
             Token { token_type: TokenType::RightBrace, literal: "}".to_string() },
+            Token { token_type: TokenType::EOF, literal: "".to_string() },
         ];
 
         for desired_result in desired_results {
@@ -333,6 +337,7 @@ mod test {
             Token { token_type: TokenType::Colon, literal: ":".to_string() },
             Token { token_type: TokenType::Numeric, literal: "100.0".to_string() },
             Token { token_type: TokenType::RightBrace, literal: "}".to_string() },
+            Token { token_type: TokenType::EOF, literal: "".to_string() },
         ];
 
         for desired_result in desired_results {
@@ -341,5 +346,18 @@ mod test {
             println!("{:?}", token);
             assert_eq!(desired_result, token);
         }
+    }
+
+    #[test]
+    fn test_malformed_number() {
+        let content = r#"1.000_"#;
+        
+        let lexer = Lexer::new(&content);
+
+        let (_, token) = lexer.next_token();
+        assert_eq!(token, Token {
+            token_type: TokenType::Invalid,
+            literal: "malformed number".to_string()
+        })
     }
 }
