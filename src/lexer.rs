@@ -200,7 +200,7 @@ impl<'a> Lexer<'a> {
                         Some(remainder) => Some(format!("{}{}", ch, remainder)),
                         None => None
                     })
-                } else if ch == '\n' || ch == ',' {
+                } else if ch == '\n' || ch == ',' || ch.is_whitespace() {
                     (self, Some(String::new()))
                 } else {
                     (self, None)
